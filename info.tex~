@@ -1,0 +1,14 @@
+\documentclass{article}
+
+\begin{document}
+Need to be implemented
+\begin{itemize}
+\item getattr
+\item readdir
+\item open
+\item read
+\item close
+\item opendir
+\item closedir
+\end{itemize}
+\end{document}

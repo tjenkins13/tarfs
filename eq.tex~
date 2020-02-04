@@ -1,0 +1,10 @@
+\documentclass{article}
+
+\begin{document}
+  \begin{equation}
+    a_n=\frac{1}{\sqrt{5}}\Bigg(\frac{1+\sqrt{5}}{2}-\frac{1-\sqrt{5}}{2}\Bigg)  
+  \end{equation}
+  \begin{equation}
+    log_{some}(a)
+  \end{equation}
+\end{document}
