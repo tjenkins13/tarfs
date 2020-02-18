@@ -77,9 +77,11 @@ func OpenTar(filename string) int {
 	}
 	sort.Sort(ByNameLen(tfile)) // sort by length of file name for insertion into tree
 	//get tree of filesystem and put it in array
-	head = tree.Create(tfile[0])
+	head = tree.Create_Root()
+	//head = tree.Create(tfile[0])
 	//fmt.Println(head.Data.Name)
-	for _, file := range tfile[1:] {
+	//for _, file := range tfile[1:] {
+	for _, file := range tfile {
 		head.Insert(file)
 		//fmt.Println(file.Name)
 	}
@@ -94,5 +96,5 @@ func CloseTar(fd int) {
 
 func main() {
 	//fmt.Println("Hello World")
-	fmt.Println(OpenTar("data/x.tar"))
+	fmt.Println(OpenTar("data/mine.tar"))
 }

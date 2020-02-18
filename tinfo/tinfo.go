@@ -11,7 +11,7 @@ import "strings"
 
 //import "sort"
 
-//import "time"
+import "time"
 
 /*
 type TarFile struct{
@@ -37,22 +37,23 @@ prefix [167]byte
 
 type TarFile struct {
 	Name     string
-	mode     string
-	uid      int64
-	gid      int64
+	Mode     string
+	Uid      int64
+	Gid      int64
 	Size     int64
-	mtime    int64
-	chksum   int64
+	Mtime    int64
+	Chksum   int64
 	Typeflag byte
-	linkname string
-	magic    string
-	uname    string
-	gname    string
-	devmajor int64
-	devminor int64
-	prefix   string
+	Linkname string
+	Magic    string
+	Uname    string
+	Gname    string
+	Devmajor int64
+	Devminor int64
+	Prefix   string
 	Link     int64 //I added to keep track of num links for ls
-	blockno  int64 //What block is tarfile header in
+	Blockno  int64 //What block is tarfile header in
+	Offset   int64 //where are we within the file
 }
 
 type ByNameLen []TarFile
@@ -67,23 +68,24 @@ func (tFile *TarFile) Create(b1 []byte, blockno int64) {
 
 	//Find parts of struct given 512 byte block
 	tFile.Name = MyBS(b1[:100])
-	tFile.mode = MyBS(b1[100:108])
-	tFile.mode = tFile.mode[len(tFile.mode)-3 : len(tFile.mode)]
-	tFile.uid = MyBtoO(b1[108:116])
-	tFile.gid = MyBtoO(b1[116:124])
+	tFile.Mode = MyBS(b1[100:108])
+	tFile.Mode = tFile.Mode[len(tFile.Mode)-3 : len(tFile.Mode)]
+	tFile.Uid = MyBtoO(b1[108:116])
+	tFile.Gid = MyBtoO(b1[116:124])
 	tFile.Size = MyBtoO(b1[124:136])
-	tFile.mtime = MyBtoO(b1[136:148])
-	tFile.chksum = MyBtoO(b1[148:156])
+	tFile.Mtime = MyBtoO(b1[136:148])
+	tFile.Chksum = MyBtoO(b1[148:156])
 	tFile.Typeflag = b1[156]
-	tFile.linkname = MyBS(b1[157:257])
-	tFile.magic = MyBS(b1[257:265])
-	tFile.uname = MyBS(b1[265:297])
-	tFile.gname = MyBS(b1[297:329])
-	tFile.devmajor = MyBtoO(b1[329:337])
-	tFile.devminor = MyBtoO(b1[337:345])
-	tFile.prefix = MyBS(b1[345:])
+	tFile.Linkname = MyBS(b1[157:257])
+	tFile.Magic = MyBS(b1[257:265])
+	tFile.Uname = MyBS(b1[265:297])
+	tFile.Gname = MyBS(b1[297:329])
+	tFile.Devmajor = MyBtoO(b1[329:337])
+	tFile.Devminor = MyBtoO(b1[337:345])
+	tFile.Prefix = MyBS(b1[345:])
 	tFile.Link = 1
-	tFile.blockno = blockno
+	tFile.Blockno = blockno
+	tFile.Offset = 0
 }
 
 func PrintPerm(perm int64) {
@@ -112,9 +114,9 @@ func (tfile TarFile) MyLs() { //do ls -l
 	} else {
 		fmt.Printf("-")
 	}
-	uperm, _ := strconv.ParseInt(string(tfile.mode[0]), 8, 64)
-	gperm, _ := strconv.ParseInt(string(tfile.mode[1]), 8, 64)
-	operm, _ := strconv.ParseInt(string(tfile.mode[2]), 8, 64)
+	uperm, _ := strconv.ParseInt(string(tfile.Mode[0]), 8, 64)
+	gperm, _ := strconv.ParseInt(string(tfile.Mode[1]), 8, 64)
+	operm, _ := strconv.ParseInt(string(tfile.Mode[2]), 8, 64)
 	PrintPerm(uperm)
 	PrintPerm(gperm)
 	PrintPerm(operm)
@@ -123,13 +125,20 @@ func (tfile TarFile) MyLs() { //do ls -l
 	//} else {
 	//	fmt.Printf(" 1 ")
 	//}
-	fmt.Printf("%s %s %d ", tfile.uname, tfile.gname, tfile.Size)
+	fmt.Printf("%s %s %d ", tfile.Uname, tfile.Gname, tfile.Size)
 	//fmt.Printf("%o%o%o", uperm, gperm, operm)
-
+	t := time.Unix(tfile.Mtime, 0)
+	fmt.Printf("%s %d %d ", t.Month(), t.Day(), t.Year())
+	path := strings.SplitN(tfile.Name, "/", -1)
+	if path[len(path)-1] == "" {
+		path = path[:len(path)-1]
+	}
 	if dflag {
-		fmt.Printf("\x1b[01;34m%s\n\x1b[0m", tfile.Name) //print directory blue
+		//fmt.Printf("\x1b[01;34m%s\n\x1b[0m", tfile.Name) //print directory blue
+		fmt.Printf("\x1b[01;34m%s\x1b[0m/\n", path[len(path)-1]) //print directory blue
 	} else {
-		fmt.Printf("%s\n", tfile.Name)
+		//fmt.Printf("%s\n", tfile.Name)
+		fmt.Printf("%s\n", path[len(path)-1])
 	}
 }
 
@@ -149,80 +158,3 @@ func MyBtoI(bar []byte) int64 { //convert byte array to base ten number
 
 	return output
 }
-
-/*
-func allZero(s []byte) bool {
-	for _, v := range s {
-		if v != 0 {
-			return false
-		}
-	}
-	return true
-}
-
-func OpenTar(filename string) int {
-	var tfile []TarFile
-	var t TarFile
-	var block int64 = 0
-	sread := 0
-	dat, err := os.Open("../cs671/x.tar")
-	if err != nil {
-		panic(err)
-	}
-
-	b1 := make([]byte, 512)
-	_, err2 := dat.Read(b1)
-	if err2 != nil {
-		panic(err2)
-	}
-
-	for allZero(b1) {
-		if sread == 0 {
-			t.Create(b1, block)
-			tfile = append(tfile, t)
-			block++
-			if tfile[len(tfile)-1].Typeflag != '5' { //if it's not a directory we're about to read some data
-				sread = int((tfile[len(tfile)-1].Size-1)/512) + 1
-			}
-		} else {
-			sread--
-		}
-		dat.Read(b1)
-	}
-	sort.Sort(ByNameLen(tfile)) // sort by length of file name for insertion into tree
-
-	return len(tfile) //for now, will be change to return element of array
-
-}
-
-func CloseTar(fd int) {
-
-}
-*/
-/*
-func main() {
-	//	var tfile TarFile
-	//var sread int64 = 0 //keep track if next block should be read or not
-	dat, err := os.Open("../cs671/x.tar")
-	if err != nil {
-		panic(err)
-	}
-
-	b1 := make([]byte, 512)
-	_, err2 := dat.Read(b1)
-	if err2 != nil {
-		panic(err2)
-	}
-
-	tfile.Create(b1,0)
-	fmt.Println(len(tfile.name))
-	fmt.Println(tfile.mode[0])
-	fmt.Println(tfile.mode[1])
-	fmt.Println(tfile.mode[2])
-	fmt.Println(tfile.Size)
-	fmt.Println(string(tfile.typeflag))
-	tfile.MyLs()
-
-	fmt.Println(OpenTar("../cs671/x.tar"))
-}
-*/
