@@ -1,11 +1,11 @@
 //I got this from https://github.com/bazil/zipfs/blob/master/main.go#L78
 //and I am editing it to work for tar files using what I wrote
 
-package main
+package tarfs
 
 import (
 	//	"archive/zip"
-	"flag"
+	//	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -29,14 +29,16 @@ type TarFile = tinfo.TarFile
 type Node = tree.Node
 
 type OpenStruct struct {
-	tname    string //absolute path to tar file
-	mloc     string //absolute path to where you are mounting tar file
-	fname    string //name of file within tar file you want
-	tree     *Node  //head of tree for filesystem
-	allfiles []TarFile
-	fd       *os.File //file descriptor for tar file
+	tname    string    //absolute path to tar file
+	mloc     string    //absolute path to where you are mounting tar file
+	fname    string    //name of file within tar file you want
+	tree     *Node     //head of tree for filesystem
+	allfiles []TarFile //list of all files - could play with it so I don't need this
+	fd       *os.File  //file descriptor for tar file
 }
 
+//For sorting Tar file headers by len of the name to ensure that a parent directory is added
+//before child directories
 type ByNameLen []TarFile
 
 func (a ByNameLen) Len() int           { return len(a) }
@@ -54,7 +56,6 @@ func allZero(s []byte) bool {
 }
 
 //End of stuff I put in
-// We assume the zip file contains entries for directories too.
 
 var progName = filepath.Base(os.Args[0])
 
@@ -107,19 +108,20 @@ func OpenTar(filename string) (*OpenStruct, error) {
 	}
 	//fmt.Println(string(b1[:100]))
 	//fmt.Println(b1)
-	for !allZero(b1) {
-		if sread == 0 {
+
+	for !allZero(b1) { //Search headers until we get two blocks full of 0
+		if sread == 0 { //We have a header
 			t.Create(b1, block)
 			//fmt.Println(t.Name)
-			tfile = append(tfile, t)
+			tfile = append(tfile, t) //add file info to list
 
 			if tfile[len(tfile)-1].Typeflag != '5' { //if it's not a directory we're about to read some data
-				sread = int((tfile[len(tfile)-1].Size-1)/512) + 1
+				sread = int((tfile[len(tfile)-1].Size-1)/512) + 1 //Number of blocks that file contains
 			}
-		} else {
+		} else { //We are not reading a header but part of a file
 			sread--
 		}
-		dat.Read(b1)
+		dat.Read(b1)     //Get another block
 		if allZero(b1) { //tar file ends with two empty blocks and we found one
 			dat.Read(b1) //get second block- loop checks if its empty
 			block++
